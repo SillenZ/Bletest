@@ -7,30 +7,35 @@
 static const char *SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0";
 static const char *ADAPTER_PATH = "/org/bluez/hci0";
 
-// Define a structure to hold the advertisement details
 typedef struct {
     GDBusConnection *connection;
     char *path;
 } Advertisement;
 
-// Function to register the advertisement
 void register_advertisement(Advertisement *ad) {
     GError *error = NULL;
 
-    GVariantBuilder *service_uuids_builder = g_variant_builder_new(G_VARIANT_TYPE("as"));
-    g_variant_builder_add(service_uuids_builder, "s", SERVICE_UUID);
+    // Build the Service UUIDs array
+    GVariantBuilder service_uuids_builder;
+    g_variant_builder_init(&service_uuids_builder, G_VARIANT_TYPE("as"));
+    g_variant_builder_add(&service_uuids_builder, "s", SERVICE_UUID);
+    GVariant *service_uuids = g_variant_builder_end(&service_uuids_builder);
 
-    GVariantBuilder *properties_builder = g_variant_builder_new(G_VARIANT_TYPE("a{sv}"));
-    g_variant_builder_add(properties_builder, "{sv}", "Type", g_variant_new_string("peripheral"));
-    g_variant_builder_add(properties_builder, "{sv}", "ServiceUUIDs", g_variant_new("as", service_uuids_builder));
-    g_variant_builder_add(properties_builder, "{sv}", "LocalName", g_variant_new_string("test-rs9116"));
+    // Build the properties dictionary
+    GVariantBuilder properties_builder;
+    g_variant_builder_init(&properties_builder, G_VARIANT_TYPE("a{sv}"));
+    g_variant_builder_add(&properties_builder, "{sv}", "Type", g_variant_new_string("peripheral"));
+    g_variant_builder_add(&properties_builder, "{sv}", "ServiceUUIDs", service_uuids);
+    g_variant_builder_add(&properties_builder, "{sv}", "LocalName", g_variant_new_string("test-rs9116"));
+    GVariant *properties = g_variant_builder_end(&properties_builder);
 
+    // Register the advertisement
     g_dbus_connection_call_sync(ad->connection,
                                 "org.bluez",
                                 ADAPTER_PATH,
                                 "org.bluez.LEAdvertisingManager1",
                                 "RegisterAdvertisement",
-                                g_variant_new("(oa{sv})", ad->path, g_variant_builder_end(properties_builder)),
+                                g_variant_new("(oa{sv})", ad->path, properties),
                                 NULL,
                                 G_DBUS_CALL_FLAGS_NONE,
                                 -1,
@@ -43,16 +48,12 @@ void register_advertisement(Advertisement *ad) {
     } else {
         g_print("Advertisement registered successfully with name 'test-rs9116'\n");
     }
-
-    g_variant_builder_unref(service_uuids_builder);
-    g_variant_builder_unref(properties_builder);
 }
 
-// Function to create and initialize an advertisement object
 Advertisement* create_advertisement(GDBusConnection *connection) {
     Advertisement *ad = g_new0(Advertisement, 1);
     ad->connection = connection;
-    ad->path = g_strdup("/org/bluez/advertisement0");  // Unique path for the advertisement object
+    ad->path = g_strdup("/org/bluez/advertisement0");
     return ad;
 }
 
@@ -68,17 +69,12 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Create the advertisement object
     Advertisement *ad = create_advertisement(connection);
-
-    // Register the advertisement with the desired local name
     register_advertisement(ad);
 
-    // Start the main loop
     loop = g_main_loop_new(NULL, FALSE);
     g_main_loop_run(loop);
 
-    // Clean up
     g_free(ad->path);
     g_free(ad);
 
